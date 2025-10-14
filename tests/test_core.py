@@ -2,6 +2,7 @@ from dictlens.core import compare_dicts
 
 debug = True
 
+
 # --------------------------------------------------------------------------
 # 1️⃣ BASIC TESTS — direct equality and simple mismatches
 # --------------------------------------------------------------------------
@@ -39,6 +40,7 @@ def test_global_abs_tolerance():
     b = {"temp": 20.05}
     assert compare_dicts(a, b, abs_tol=0.1, show_debug=debug)
 
+
 def test_global_tolerance_fail():
     a = {"temp": 20.0}
     b = {"temp": 21.0}
@@ -59,24 +61,82 @@ def test_per_field_abs_tolerance():
     a = {"a": 1.0, "b": 2.0}
     b = {"a": 1.5, "b": 2.5}
     abs_tol_fields = {"$.b": 1.0}
-    assert compare_dicts(a, b,abs_tol=0.5, abs_tol_fields=abs_tol_fields, show_debug=debug)
+    assert compare_dicts(a, b, abs_tol=0.5, abs_tol_fields=abs_tol_fields, show_debug=debug)
 
 
 def test_per_field_rel_tolerance():
     a = {"values": {"x": 100, "y": 200}}
     b = {"values": {"x": 110, "y": 210}}
     rel_tol_fields = {"$.values.x": 0.2}  # 20%
-    assert compare_dicts(a, b,rel_tol=0.05, rel_tol_fields=rel_tol_fields, show_debug=debug)
+    assert compare_dicts(a, b, rel_tol=0.05, rel_tol_fields=rel_tol_fields, show_debug=debug)
 
 
 # --------------------------------------------------------------------------
 # 4️⃣ IGNORED FIELDS
 # --------------------------------------------------------------------------
 
-def test_ignore_field():
+def test_ignore_path_root_field():
     a = {"id": 1, "timestamp": "now"}
     b = {"id": 1, "timestamp": "later"}
-    assert compare_dicts(a, b, ignore_fields=["timestamp"], show_debug=debug)
+
+    # Ignore only the root timestamp field
+    ignore_paths = ["$.timestamp"]
+
+    assert compare_dicts(a, b, ignore_paths=ignore_paths, show_debug=debug)
+
+
+def test_ignore_paths_complex():
+    """
+    Ignore multiple paths with different patterns:
+      - Exact path:            $.user.profile.updated_at
+      - Array wildcard:        $.devices[*].debug
+      - Recursive descent key: $..trace
+    """
+    a = {
+        "user": {
+            "id": 7,
+            "profile": {"updated_at": "2025-10-14T10:00:00Z", "age": 30}
+        },
+        "devices": [
+            {"id": "d1", "debug": "alpha", "temp": 20.0},
+            {"id": "d2", "debug": "beta", "temp": 20.1}
+        ],
+        "sessions": [
+            {"events": [{"meta": {"trace": "abc"}, "value": 10.0}]},
+            {"events": [{"meta": {"trace": "def"}, "value": 10.5}]}
+        ]
+    }
+
+    b = {
+        "user": {
+            "id": 7,
+            "profile": {"updated_at": "2025-10-15T10:00:05Z", "age": 30}
+        },
+        "devices": [
+            {"id": "d1", "debug": "changed", "temp": 20.05},
+            {"id": "d2", "debug": "changed", "temp": 20.18}
+        ],
+        "sessions": [
+            {"events": [{"meta": {"trace": "xyz"}, "value": 10.01}]},
+            {"events": [{"meta": {"trace": "uvw"}, "value": 10.52}]}
+        ]
+    }
+
+    # Ignore updated_at (exact), all device.debug (wildcard), any 'trace' anywhere (recursive)
+    ignore_paths = [
+        "$.user.profile.updated_at",
+        "$.devices[*].debug",
+        "$..trace",
+    ]
+
+    # Small global tolerance to allow minor sensor/value drift
+    assert compare_dicts(
+        a, b,
+        ignore_paths=ignore_paths,
+        abs_tol=0.05,
+        rel_tol=0.02,
+        show_debug=debug
+    )
 
 
 # --------------------------------------------------------------------------
@@ -209,25 +269,25 @@ def test_combined_global_and_field_tolerances():
         "meta": {"version": 1.02, "id": "abc"},
         "sensor": {
             "temp": 21.6,
-            "humidity": 49.0,     # large diff, handled by per-field abs_tol
-            "pressure": 101.4     # small diff, handled by global tolerances
+            "humidity": 49.0,  # large diff, handled by per-field abs_tol
+            "pressure": 101.4  # small diff, handled by global tolerances
         },
         "status": {
             "signal_strength": -68,  # within rel_tol
-            "battery": 94.5          # within global abs_tol
+            "battery": 94.5  # within global abs_tol
         }
     }
 
     abs_tol_fields = {
-        "$.sensor.humidity": 2.0,    # large absolute tolerance
-        "$.meta.version": 0.05       # tighter tolerance for version
+        "$.sensor.humidity": 2.0,  # large absolute tolerance
+        "$.meta.version": 0.05  # tighter tolerance for version
     }
 
     rel_tol_fields = {
         "$.status.signal_strength": 0.05  # 5% relative tolerance allowed
     }
 
-    ignore_fields = ["meta.id"]  # ignored entirely
+    ignore_paths = ["$.meta.id"]  # ignored entirely
 
     assert compare_dicts(
         a,
@@ -236,8 +296,6 @@ def test_combined_global_and_field_tolerances():
         rel_tol=0.01,
         abs_tol_fields=abs_tol_fields,
         rel_tol_fields=rel_tol_fields,
-        ignore_fields=ignore_fields,
+        ignore_paths=ignore_paths,
         show_debug=True
     ), "Combined tolerance test failed unexpectedly"
-
-

@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-
 # -----------------------------------------------------------------------------
 # Utility helpers
 # -----------------------------------------------------------------------------
@@ -13,15 +12,6 @@ logger = logging.getLogger(__name__)
 def _is_number(v: Any) -> bool:
     """Return True only for real numeric types (not numeric strings)."""
     return isinstance(v, (int, float)) and not isinstance(v, bool)
-
-
-def _remove_ignored(obj: Any, ignore_fields: List[str]) -> Any:
-    """Recursively remove ignored fields from dicts/lists."""
-    if isinstance(obj, dict):
-        return {k: _remove_ignored(v, ignore_fields) for k, v in obj.items() if k not in ignore_fields}
-    if isinstance(obj, list):
-        return [_remove_ignored(i, ignore_fields) for i in obj]
-    return obj
 
 
 def _format_path(path: Tuple[Any, ...]) -> str:
@@ -32,7 +22,7 @@ def _format_path(path: Tuple[Any, ...]) -> str:
             parts.append(p)
         elif isinstance(p, int):
             parts[-1] = f"{parts[-1]}[{p}]"
-    return "$." + ".".join(parts)
+    return "$." + ".".join(parts) if parts else "$."
 
 
 # -----------------------------------------------------------------------------
@@ -46,19 +36,19 @@ def _match_pattern(pattern: str, path: str) -> bool:
     Supported:
       - [*] : any array index
       - [n] : exact array index
-      - .*  : any property
-      - $.. : recursive descent (any depth)
+      - .*  : any property (one level)
+      - $..key : recursive descent (any depth, specific key)
     """
     regex = re.escape(pattern)
-    regex = regex.replace(r"\[\*\]", r"\[\d+\]")  # match any index
-    regex = regex.replace(r"\.\*", r"\.[^.]+")  # match any property
-    regex = regex.replace(r"\$\.\.", r"\$\.?.*")  # recursive
+    regex = regex.replace(r"\[\*\]", r"\[\d+\]")      # any numeric index
+    regex = regex.replace(r"\.\*", r"\.[^.]+")        # any single property
+    regex = regex.replace(r"\$\.\.", r"\$\.?.*")      # recursive descent
     regex = "^" + regex + "$"
     return re.match(regex, path) is not None
 
 
 def _validate_pattern(pattern: str) -> None:
-    """Validate a user-supplied pattern against supported subset of JSONPath."""
+    """Validate a user-supplied pattern against the supported subset of JSONPath."""
     VALID_PATTERN = re.compile(
         r"^\$((\.[a-zA-Z_][a-zA-Z0-9_-]*)|(\[\d+\])|(\[\*\])|(\.\*)|(\.\.[a-zA-Z_][a-zA-Z0-9_-]*)?)*$"
     )
@@ -69,12 +59,29 @@ def _validate_pattern(pattern: str) -> None:
         )
 
 
+def _compile_patterns(patterns: List[str]) -> List[re.Pattern]:
+    """Precompile ignore/tolerance patterns for faster matching."""
+    compiled = []
+    for p in patterns:
+        _validate_pattern(p)
+        rx = re.escape(p)
+        rx = rx.replace(r"\[\*\]", r"\[\d+\]")
+        rx = rx.replace(r"\.\*", r"\.[^.]+")
+        rx = rx.replace(r"\$\.\.", r"\$\.?.*")
+        compiled.append(re.compile("^" + rx + "$"))
+    return compiled
+
+
+def _path_matches_any(path_str: str, compiled_patterns: List[re.Pattern]) -> bool:
+    return any(rx.match(path_str) for rx in compiled_patterns)
+
+
 def _get_tolerances_for_path(
-        path_str: str,
-        abs_tol: float,
-        rel_tol: float,
-        abs_tol_fields: Dict[str, float],
-        rel_tol_fields: Dict[str, float],
+    path_str: str,
+    abs_tol: float,
+    rel_tol: float,
+    abs_tol_fields: Dict[str, float],
+    rel_tol_fields: Dict[str, float],
 ) -> Tuple[float, float]:
     """
     Resolve abs_tol and rel_tol for a given path.
@@ -91,7 +98,7 @@ def _get_tolerances_for_path(
     if path_str in rel_tol_fields:
         local_rel = rel_tol_fields[path_str]
 
-    # Pattern match
+    # Pattern match (wildcards / recursive)
     for pattern, val in abs_tol_fields.items():
         if _match_pattern(pattern, path_str):
             local_abs = val
@@ -103,26 +110,60 @@ def _get_tolerances_for_path(
 
 
 # -----------------------------------------------------------------------------
+# Path-aware ignore
+# -----------------------------------------------------------------------------
+
+def _remove_ignored_by_path(
+    obj: Any,
+    ignore_patterns: List[re.Pattern],
+    path: Tuple[Any, ...] = (),
+) -> Any:
+    """Recursively drop keys/items whose *path* matches any ignore pattern."""
+    path_str = _format_path(path)
+    if _path_matches_any(path_str, ignore_patterns):
+        # Entire current node is ignored
+        return None  # sentinel indicating "dropped"
+
+    if isinstance(obj, list):
+        kept = []
+        for i, item in enumerate(obj):
+            child = _remove_ignored_by_path(item, ignore_patterns, path + (i,))
+            if child is not None:
+                kept.append(child)
+        return kept
+
+    if isinstance(obj, dict):
+        new_d = {}
+        for k, v in obj.items():
+            child = _remove_ignored_by_path(v, ignore_patterns, path + (k,))
+            if child is not None:
+                new_d[k] = child
+        return new_d
+
+    return obj
+
+
+# -----------------------------------------------------------------------------
 # Main comparison
 # -----------------------------------------------------------------------------
 
 def compare_dicts(
-        old: Dict[str, Any],
-        new: Dict[str, Any],
-        *,
-        ignore_fields: List[str] = None,
-        abs_tol: float = 0.0,
-        rel_tol: float = 0.0,
-        abs_tol_fields: Dict[str, float] = None,
-        rel_tol_fields: Dict[str, float] = None,
-        epsilon: float = 1e-12,
-        show_debug: bool = False,
+    old: Dict[str, Any],
+    new: Dict[str, Any],
+    *,
+    ignore_paths: List[str] = None,
+    abs_tol: float = 0.0,
+    rel_tol: float = 0.0,
+    abs_tol_fields: Dict[str, float] = None,
+    rel_tol_fields: Dict[str, float] = None,
+    epsilon: float = 1e-12,
+    show_debug: bool = False,
 ) -> bool:
     """
     Compare two Python dictionaries (or lists) with:
       - global abs/rel tolerance
       - per-field abs/rel tolerance via JSONPath-like patterns
-      - optional ignored fields
+      - path-based ignored nodes (via JSONPath-like patterns)
       - strict array order
       - floating-point safety via epsilon
 
@@ -131,21 +172,23 @@ def compare_dicts(
       .key          : property access
       [n] / [*]     : array index / all elements
       .*            : wildcard property
-      $..key        : recursive descent
+      $..key        : recursive descent for a given key
 
     Unsupported:
-      filters [?(..)], slices [0:2], or expressions.
+      filters [?(..)], slices [0:2], unions [0,2], expressions.
     """
-    ignore_fields = ignore_fields or []
+    ignore_paths = ignore_paths or []
     abs_tol_fields = abs_tol_fields or {}
     rel_tol_fields = rel_tol_fields or {}
 
-    # Validate pattern syntax
-    for p in list(abs_tol_fields.keys()) + list(rel_tol_fields.keys()):
+    # Validate & precompile patterns once
+    for p in list(abs_tol_fields.keys()) + list(rel_tol_fields.keys()) + list(ignore_paths):
         _validate_pattern(p)
+    compiled_ignores = _compile_patterns(ignore_paths)
 
-    old_obj = _remove_ignored(old, ignore_fields)
-    new_obj = _remove_ignored(new, ignore_fields)
+    # Apply path-based ignores to both structures
+    old_obj = _remove_ignored_by_path(old, compiled_ignores, ())
+    new_obj = _remove_ignored_by_path(new, compiled_ignores, ())
 
     return _deep_compare(
         old_obj,
@@ -161,15 +204,15 @@ def compare_dicts(
 
 
 def _deep_compare(
-        a: Any,
-        b: Any,
-        path: Tuple[Any, ...],
-        abs_tol: float,
-        rel_tol: float,
-        abs_tol_fields: Dict[str, float],
-        rel_tol_fields: Dict[str, float],
-        epsilon: float,
-        show_debug: bool,
+    a: Any,
+    b: Any,
+    path: Tuple[Any, ...],
+    abs_tol: float,
+    rel_tol: float,
+    abs_tol_fields: Dict[str, float],
+    rel_tol_fields: Dict[str, float],
+    epsilon: float,
+    show_debug: bool,
 ) -> bool:
     """Recursive deep comparison with structured debug logging."""
     if show_debug:
@@ -204,8 +247,8 @@ def _deep_compare(
 
         for k in a:
             if not _deep_compare(
-                    a[k], b[k], path + (k,),
-                    abs_tol, rel_tol, abs_tol_fields, rel_tol_fields, epsilon, show_debug,
+                a[k], b[k], path + (k,),
+                abs_tol, rel_tol, abs_tol_fields, rel_tol_fields, epsilon, show_debug,
             ):
                 logger.debug(f"[FAIL IN DICT] {path_str}.{k}")
                 return False
@@ -220,8 +263,8 @@ def _deep_compare(
 
         for i, (x, y) in enumerate(zip(a, b)):
             if not _deep_compare(
-                    x, y, path + (i,),
-                    abs_tol, rel_tol, abs_tol_fields, rel_tol_fields, epsilon, show_debug,
+                x, y, path + (i,),
+                abs_tol, rel_tol, abs_tol_fields, rel_tol_fields, epsilon, show_debug,
             ):
                 logger.debug(f"[FAIL IN LIST] {path_str}[{i}]")
                 return False
