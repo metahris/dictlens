@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dictlens"
-version = "0.1.0"
+version = "0.1.1"
 description = "A lightweight library to compare JSON, dicts, dataclasses, and Pydantic models with tolerance and ignore rules."
 authors = [
     { name = "Mohamed Tahri", email = "simotahri1@gmail.com" }
