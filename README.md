@@ -26,6 +26,7 @@ configurations where small numeric drifts are expected.
 
 ## Quick Examples
 
+``` python
     from dictlens import compare_dicts
 
     a = {"sensor": {"temp": 21.5, "humidity": 48.0}}
@@ -34,6 +35,7 @@ configurations where small numeric drifts are expected.
     # Default tolerances
     res = compare_dicts(a, b, abs_tol=0.05, rel_tol=0.01, show_debug=True)
     print(res)  # False
+```
 
 ```console
 ### Output (debug)
@@ -48,55 +50,82 @@ configurations where small numeric drifts are expected.
 
 #### Ignore Fields
 
+```python
+    from dictlens import compare_dicts
+
     a = {"id": 1, "timestamp": "now"}
     b = {"id": 1, "timestamp": "later"}
     result = compare_dicts(a, b, ignore_fields=["timestamp"])
     print(result) # True
+```
 
 #### Per-field Tolerances
 
 You can override tolerances for specific paths using JSONPath-like
 expressions.
 
+```python
+    from dictlens import compare_dicts
+
     a = {"a": 1.0, "b": 2.0}
     b = {"a": 1.5, "b": 2.5}
     abs_tol_fields = {"$.b": 1.0}
     result = compare_dicts(a, b,abs_tol=0.5, abs_tol_fields=abs_tol_fields) 
     print(result)  # True
+```
 
 #### array specific index tolerance
+
+```python
+    from dictlens import compare_dicts
 
     a = {"sensors": [{"temp": 20.0}, {"temp": 21.0}]}
     b = {"sensors": [{"temp": 20.05}, {"temp": 21.5}]}
     abs_tol_fields = {"$.sensors[0].temp": 0.1, "$.sensors[1].temp": 1.0} 
     result = compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
     print(result) # True
+```
 
 #### array wildcard tolerance
+
+```python
+    from dictlens import compare_dicts
 
     a = {"sensors": [{"temp": 20.0}, {"temp": 21.0}]}
     b = {"sensors": [{"temp": 20.2}, {"temp": 21.1}]}
     abs_tol_fields = {"$.sensors[*].temp": 0.5}
     result = compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
     print(result) # True
+```
 
 #### property wildcard tolerance
+
+```python
+    from dictlens import compare_dicts
 
     a = {"network": {"n1": {"v": 10}, "n2": {"v": 10}}}
     b = {"network": {"n1": {"v": 10.5}, "n2": {"v": 9.8}}}
     abs_tol_fields = {"$.network.*.v": 1.0}
     result = compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
     print(result) # True
+```
 
 #### recursive wildcard tolerance
+
+```python
+    from dictlens import compare_dicts
 
     a  = {"meta": {"deep": {"very": {"x": 100}}}}
     b = {"meta": {"deep": {"very": {"x": 101}}}}
     abs_tol_fields = {"$..x": 2.0}
     result = compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
     print(result)
+```
 
 #### combined global and field tolerances
+
+```python 
+    from dictlens import compare_dicts
 
     # Original reading (e.g., baseline snapshot)
     a = {
@@ -163,6 +192,7 @@ expressions.
     )
 
     print(result) # True
+```
 
 ## Supported Path Patterns
 
@@ -271,52 +301,6 @@ evaluated.
 </tbody>
 </table>
 
-## Example — Complex IoT Snapshot
-
-    a = {
-        "network": {
-            "id": "site-001",
-            "nodes": [
-                {"id": "N-A", "metrics": {"temp": 21.5, "humidity": 48.0}},
-                {"id": "N-B", "metrics": {"temp": 22.0, "humidity": 47.5}}
-            ]
-        },
-        "gateway": {"battery": 87.0, "signal": -68}
-    }
-
-    b = {
-        "network": {
-            "id": "site-001",
-            "nodes": [
-                {"id": "N-A", "metrics": {"temp": 21.7, "humidity": 48.5}},
-                {"id": "N-B", "metrics": {"temp": 21.9, "humidity": 47.4}}
-            ]
-        },
-        "gateway": {"battery": 86.5, "signal": -70}
-    }
-
-    abs_tol_fields = {
-        "$.gateway.signal": 3.0,
-        "$.gateway.battery": 2.0,
-    }
-    rel_tol_fields = {
-        "$.network.nodes[*].metrics.temp": 0.02,
-        "$.network.nodes[*].metrics.humidity": 0.03,
-    }
-
-    result = compare_dicts(
-        a,
-        b,
-        abs_tol_fields=abs_tol_fields,
-        rel_tol_fields=rel_tol_fields,
-        show_debug=True,
-    )
-
-### Output
-
-    [MATCH NUMERIC] $.network.nodes[0].metrics.temp: within tolerance
-    [MATCH NUMERIC] $.gateway.signal: within tolerance
-    True
 
 ## Tips
 
