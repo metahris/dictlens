@@ -12,6 +12,7 @@ from dictlens.core import compare_dicts, _validate_pattern, logger
 # 1️- INVALID PATTERN TESTS\n
 # --------------------------------------------------------------------------
 
+
 def test_invalid_pattern_missing_dollar():
     """Test pattern validation: must start with $"""
     with pytest.raises(ValueError, match="Invalid JSONPath-like pattern"):
@@ -67,6 +68,7 @@ def test_invalid_pattern_in_rel_tol_fields():
 # 2- DEBUG LOGGING TESTS\n
 # --------------------------------------------------------------------------
 
+
 def test_debug_logging_handler_creation():
     """
     Test debug logging handler creation (lines 221-224).
@@ -75,7 +77,7 @@ def test_debug_logging_handler_creation():
     import logging as log_module
 
     # Get the logger and clear its handlers
-    test_logger = log_module.getLogger('dictlens.core')
+    test_logger = log_module.getLogger("dictlens.core")
     original_handlers = test_logger.handlers[:]
     original_level = test_logger.level
 
@@ -123,20 +125,8 @@ def test_debug_logging_multiple_calls():
 
 def test_debug_with_nested_structure():
     """Test debug logging with complex nested data"""
-    a = {
-        "level1": {
-            "level2": {
-                "level3": {"value": 100.0}
-            }
-        }
-    }
-    b = {
-        "level1": {
-            "level2": {
-                "level3": {"value": 100.5}
-            }
-        }
-    }
+    a = {"level1": {"level2": {"level3": {"value": 100.0}}}}
+    b = {"level1": {"level2": {"level3": {"value": 100.5}}}}
 
     result = compare_dicts(a, b, abs_tol=1.0, show_debug=True)
     assert result is True
@@ -145,6 +135,7 @@ def test_debug_with_nested_structure():
 # --------------------------------------------------------------------------
 # 3- LIST MISMATCH TESTS\n
 # --------------------------------------------------------------------------
+
 
 def test_list_length_mismatch_left_longer():
     """Test list comparison when left has more items"""
@@ -185,6 +176,7 @@ def test_nested_list_length_mismatch():
 # --------------------------------------------------------------------------
 # 4- VALUE MISMATCH TESTS\n
 # --------------------------------------------------------------------------
+
 
 def test_string_value_mismatch():
     """Test string value mismatch (non-numeric comparison)"""
@@ -244,6 +236,7 @@ def test_list_vs_dict():
 # 5️- ADDITIONAL EDGE CASES\n
 # --------------------------------------------------------------------------
 
+
 def test_empty_dicts_with_debug():
     """Test empty dictionaries with debug enabled"""
     result = compare_dicts({}, {}, show_debug=True)
@@ -290,16 +283,14 @@ def test_multiline_string_mismatch():
 # 6️- PATTERN VALIDATION EDGE CASES\n
 # --------------------------------------------------------------------------
 
+
 def test_valid_pattern_complex_path():
     """Test validation of complex but valid patterns"""
     a = {"a": {"b": [{"c": 1}]}}
     b = {"a": {"b": [{"c": 1}]}}
 
     # This should NOT raise ValueError
-    result = compare_dicts(
-        a, b,
-        abs_tol_fields={"$.a.b[0].c": 0.5}
-    )
+    result = compare_dicts(a, b, abs_tol_fields={"$.a.b[0].c": 0.5})
     assert result is True
 
 
@@ -309,10 +300,7 @@ def test_valid_pattern_recursive_descent():
     b = {"x": {"y": {"z": 1}}}
 
     # This should NOT raise ValueError
-    result = compare_dicts(
-        a, b,
-        ignore_paths=["$..z"]
-    )
+    result = compare_dicts(a, b, ignore_paths=["$..z"])
     assert result is True
 
 
@@ -323,7 +311,8 @@ def test_multiple_invalid_patterns():
 
     with pytest.raises(ValueError):
         compare_dicts(
-            a, b,
+            a,
+            b,
             ignore_paths=["valid_pattern", "another_invalid"],  # Both invalid
         )
 
@@ -331,6 +320,7 @@ def test_multiple_invalid_patterns():
 # --------------------------------------------------------------------------
 # 7- COMBINATIONS WITH DEBUG MODE\n
 # --------------------------------------------------------------------------
+
 
 def test_all_error_types_with_debug():
     """

@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 # Utility helpers
 # -----------------------------------------------------------------------------
 
+
 def _is_number(v: Any) -> bool:
     """Return True only for real numeric types (not numeric strings)."""
     return isinstance(v, (int, float)) and not isinstance(v, bool)
@@ -29,6 +30,7 @@ def _format_path(path: Tuple[Any, ...]) -> str:
 # Pattern matching (JSONPath-like)
 # -----------------------------------------------------------------------------
 
+
 def _match_pattern(pattern: str, path: str) -> bool:
     """
     Match a JSONPath-like pattern to a specific path.
@@ -40,9 +42,9 @@ def _match_pattern(pattern: str, path: str) -> bool:
       - $..key : recursive descent (any depth, specific key)
     """
     regex = re.escape(pattern)
-    regex = regex.replace(r"\[\*\]", r"\[\d+\]")      # any numeric index
-    regex = regex.replace(r"\.\*", r"\.[^.]+")        # any single property
-    regex = regex.replace(r"\$\.\.", r"\$\.?.*")      # recursive descent
+    regex = regex.replace(r"\[\*\]", r"\[\d+\]")  # any numeric index
+    regex = regex.replace(r"\.\*", r"\.[^.]+")  # any single property
+    regex = regex.replace(r"\$\.\.", r"\$\.?.*")  # recursive descent
     regex = "^" + regex + "$"
     return re.match(regex, path) is not None
 
@@ -59,6 +61,7 @@ def _validate_pattern(pattern: str) -> None:
         )
 
 
+# should i deep understand this
 def _compile_patterns(patterns: List[str]) -> List[re.Pattern]:
     """Precompile ignore/tolerance patterns for faster matching."""
     compiled = []
@@ -113,6 +116,7 @@ def _get_tolerances_for_path(
 # Path-aware ignore
 # -----------------------------------------------------------------------------
 
+
 def _remove_ignored_by_path(
     obj: Any,
     ignore_patterns: List[re.Pattern],
@@ -146,6 +150,7 @@ def _remove_ignored_by_path(
 # -----------------------------------------------------------------------------
 # Main comparison
 # -----------------------------------------------------------------------------
+
 
 def compare_dicts(
     old: Dict[str, Any],
@@ -182,7 +187,9 @@ def compare_dicts(
     rel_tol_fields = rel_tol_fields or {}
 
     # Validate & precompile patterns once
-    for p in list(abs_tol_fields.keys()) + list(rel_tol_fields.keys()) + list(ignore_paths):
+    for p in (
+        list(abs_tol_fields.keys()) + list(rel_tol_fields.keys()) + list(ignore_paths)
+    ):
         _validate_pattern(p)
     compiled_ignores = _compile_patterns(ignore_paths)
 
@@ -230,7 +237,9 @@ def _deep_compare(
         if _is_number(a) and _is_number(b):
             pass  # allow numeric comparison
         else:
-            logger.debug(f"[TYPE MISMATCH] {path_str}: {type(a).__name__} vs {type(b).__name__}")
+            logger.debug(
+                f"[TYPE MISMATCH] {path_str}: {type(a).__name__} vs {type(b).__name__}"
+            )
             return False
 
     # Dict comparison
@@ -240,15 +249,26 @@ def _deep_compare(
             missing_in_a = keys_b - keys_a
             missing_in_b = keys_a - keys_b
             if missing_in_a:
-                logger.debug(f"[KEY MISMATCH] {path_str}: Missing in left dict → {sorted(missing_in_a)}")
+                logger.debug(
+                    f"[KEY MISMATCH] {path_str}: Missing in left dict → {sorted(missing_in_a)}"
+                )
             if missing_in_b:
-                logger.debug(f"[KEY MISMATCH] {path_str}: Missing in right dict → {sorted(missing_in_b)}")
+                logger.debug(
+                    f"[KEY MISMATCH] {path_str}: Missing in right dict → {sorted(missing_in_b)}"
+                )
             return False
 
         for k in a:
             if not _deep_compare(
-                a[k], b[k], path + (k,),
-                abs_tol, rel_tol, abs_tol_fields, rel_tol_fields, epsilon, show_debug,
+                a[k],
+                b[k],
+                path + (k,),
+                abs_tol,
+                rel_tol,
+                abs_tol_fields,
+                rel_tol_fields,
+                epsilon,
+                show_debug,
             ):
                 logger.debug(f"[FAIL IN DICT] {path_str}.{k}")
                 return False
@@ -263,8 +283,15 @@ def _deep_compare(
 
         for i, (x, y) in enumerate(zip(a, b)):
             if not _deep_compare(
-                x, y, path + (i,),
-                abs_tol, rel_tol, abs_tol_fields, rel_tol_fields, epsilon, show_debug,
+                x,
+                y,
+                path + (i,),
+                abs_tol,
+                rel_tol,
+                abs_tol_fields,
+                rel_tol_fields,
+                epsilon,
+                show_debug,
             ):
                 logger.debug(f"[FAIL IN LIST] {path_str}[{i}]")
                 return False
@@ -273,7 +300,9 @@ def _deep_compare(
 
     # Numeric comparison
     if _is_number(a) and _is_number(b):
-        local_abs, local_rel = _get_tolerances_for_path(path_str, abs_tol, rel_tol, abs_tol_fields, rel_tol_fields)
+        local_abs, local_rel = _get_tolerances_for_path(
+            path_str, abs_tol, rel_tol, abs_tol_fields, rel_tol_fields
+        )
         a_val, b_val = float(a), float(b)
         diff = abs(a_val - b_val)
         threshold = max(local_abs, local_rel * max(abs(a_val), abs(b_val)))
@@ -283,9 +312,13 @@ def _deep_compare(
             f"diff={diff:.6f} | abs_tol={local_abs} | rel_tol={local_rel} | threshold={threshold:.6f}"
         )
 
-        result = math.isclose(a_val, b_val, abs_tol=local_abs + epsilon, rel_tol=local_rel)
+        result = math.isclose(
+            a_val, b_val, abs_tol=local_abs + epsilon, rel_tol=local_rel
+        )
         if not result:
-            logger.debug(f"[FAIL NUMERIC] {path_str} → diff={diff:.6f} > threshold={threshold:.6f}")
+            logger.debug(
+                f"[FAIL NUMERIC] {path_str} → diff={diff:.6f} > threshold={threshold:.6f}"
+            )
         else:
             logger.debug(f"[MATCH NUMERIC] {path_str}: within tolerance")
         return result
