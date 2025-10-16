@@ -151,7 +151,7 @@ def compare_dicts(
     old: Dict[str, Any],
     new: Dict[str, Any],
     *,
-    ignore_paths: List[str] = None,
+    ignore_fields: List[str] = None,
     abs_tol: float = 0.0,
     rel_tol: float = 0.0,
     abs_tol_fields: Dict[str, float] = None,
@@ -177,14 +177,14 @@ def compare_dicts(
     Unsupported:
       filters [?(..)], slices [0:2], unions [0,2], expressions.
     """
-    ignore_paths = ignore_paths or []
+    ignore_fields = ignore_fields or []
     abs_tol_fields = abs_tol_fields or {}
     rel_tol_fields = rel_tol_fields or {}
 
     # Validate & precompile patterns once
-    for p in list(abs_tol_fields.keys()) + list(rel_tol_fields.keys()) + list(ignore_paths):
+    for p in list(abs_tol_fields.keys()) + list(rel_tol_fields.keys()) + list(ignore_fields):
         _validate_pattern(p)
-    compiled_ignores = _compile_patterns(ignore_paths)
+    compiled_ignores = _compile_patterns(ignore_fields)
 
     # Apply path-based ignores to both structures
     old_obj = _remove_ignored_by_path(old, compiled_ignores, ())

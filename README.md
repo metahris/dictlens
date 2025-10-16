@@ -53,18 +53,19 @@ print(res)  # False
 ```python
 from dictlens import compare_dicts
 
+
 def test_ignore_path_root_field():
     a = {"id": 1, "timestamp": "now"}
     b = {"id": 1, "timestamp": "later"}
-    
+
     # Ignore only the root timestamp field
-    ignore_paths = ["$.timestamp"]
-    
-    result = compare_dicts(a, b, ignore_paths=ignore_paths)
-    print(result) # True
+    ignore_fields = ["$.timestamp"]
+
+    result = compare_dicts(a, b, ignore_fields=ignore_fields)
+    print(result)  # True
 
 
-def test_ignore_paths_complex():
+def test_ignore_fields_complex():
     """
     Ignore multiple paths with different patterns:
       - Exact path:            $.user.profile.updated_at
@@ -102,20 +103,20 @@ def test_ignore_paths_complex():
     }
 
     # Ignore updated_at (exact), all device.debug (wildcard), any 'trace' anywhere (recursive)
-    ignore_paths = [
+    ignore_fields = [
         "$.user.profile.updated_at",
         "$.devices[*].debug",
         "$..trace",
     ]
 
     # Small global tolerance to allow minor sensor/value drift
-    result =  compare_dicts(
-                    a, b,
-                    ignore_paths=ignore_paths,
-                    abs_tol=0.05,
-                    rel_tol=0.02
-                )
-    print(result) # True
+    result = compare_dicts(
+        a, b,
+        ignore_fields=ignore_fields,
+        abs_tol=0.05,
+        rel_tol=0.02
+    )
+    print(result)  # True
 ```
 
 #### Per-field Tolerances
@@ -211,24 +212,24 @@ b = {
     "station": {
         "id": "ST-42",
         "location": "Paris",
-        "version": 1.03   # version drift allowed (custom abs_tol)
+        "version": 1.03  # version drift allowed (custom abs_tol)
     },
     "metrics": {
-        "temperature": 21.6,   # tiny drift (global rel_tol ok)
-        "humidity": 49.3,      # bigger drift (custom abs_tol ok)
-        "pressure": 1013.5,    # tiny drift (global ok)
-        "wind_speed": 5.6      # small drift (global ok)
+        "temperature": 21.6,  # tiny drift (global rel_tol ok)
+        "humidity": 49.3,  # bigger drift (custom abs_tol ok)
+        "pressure": 1013.5,  # tiny drift (global ok)
+        "wind_speed": 5.6  # small drift (global ok)
     },
     "status": {
-        "battery_level": 94.8,    # within abs_tol
-        "signal_strength": -69    # within rel_tol (5%)
+        "battery_level": 94.8,  # within abs_tol
+        "signal_strength": -69  # within rel_tol (5%)
     },
     "timestamp": "2025-10-14T10:00:02Z"  # ignored
 }
 
 abs_tol_fields = {
-    "$.metrics.humidity": 2.0,     # humidity sensors are noisy
-    "$.station.version": 0.1       # small version drift allowed
+    "$.metrics.humidity": 2.0,  # humidity sensors are noisy
+    "$.station.version": 0.1  # small version drift allowed
 }
 
 rel_tol_fields = {
@@ -237,7 +238,7 @@ rel_tol_fields = {
     "$.status.battery_level": 0.02  # allow ±2% battery drift
 }
 
-ignore_paths = ["$.meta.id"] 
+ignore_fields = ["$.meta.id"]
 
 result = compare_dicts(
     a,
@@ -246,11 +247,11 @@ result = compare_dicts(
     rel_tol=0.01,
     abs_tol_fields=abs_tol_fields,
     rel_tol_fields=rel_tol_fields,
-    ignore_paths=ignore_paths,
+    ignore_fields=ignore_fields,
     show_debug=True
 )
 
-print(result) # True
+print(result)  # True
 ```
 
 ## Supported Path Patterns

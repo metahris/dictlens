@@ -80,12 +80,12 @@ def test_ignore_path_root_field():
     b = {"id": 1, "timestamp": "later"}
 
     # Ignore only the root timestamp field
-    ignore_paths = ["$.timestamp"]
+    ignore_fields = ["$.timestamp"]
 
-    assert compare_dicts(a, b, ignore_paths=ignore_paths, show_debug=debug)
+    assert compare_dicts(a, b, ignore_fields=ignore_fields, show_debug=debug)
 
 
-def test_ignore_paths_complex():
+def test_ignore_fields_complex():
     """
     Ignore multiple paths with different patterns:
       - Exact path:            $.user.profile.updated_at
@@ -123,7 +123,7 @@ def test_ignore_paths_complex():
     }
 
     # Ignore updated_at (exact), all device.debug (wildcard), any 'trace' anywhere (recursive)
-    ignore_paths = [
+    ignore_fields = [
         "$.user.profile.updated_at",
         "$.devices[*].debug",
         "$..trace",
@@ -132,7 +132,7 @@ def test_ignore_paths_complex():
     # Small global tolerance to allow minor sensor/value drift
     assert compare_dicts(
         a, b,
-        ignore_paths=ignore_paths,
+        ignore_fields=ignore_fields,
         abs_tol=0.05,
         rel_tol=0.02,
         show_debug=debug
@@ -287,7 +287,7 @@ def test_combined_global_and_field_tolerances():
         "$.status.signal_strength": 0.05  # 5% relative tolerance allowed
     }
 
-    ignore_paths = ["$.meta.id"]  # ignored entirely
+    ignore_fields = ["$.meta.id"]  # ignored entirely
 
     assert compare_dicts(
         a,
@@ -296,6 +296,6 @@ def test_combined_global_and_field_tolerances():
         rel_tol=0.01,
         abs_tol_fields=abs_tol_fields,
         rel_tol_fields=rel_tol_fields,
-        ignore_paths=ignore_paths,
+        ignore_fields=ignore_fields,
         show_debug=True
-    ), "Combined tolerance test failed unexpectedly"
+    )
