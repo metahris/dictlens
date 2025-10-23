@@ -177,8 +177,8 @@ def _remove_ignored_by_path(
 # -----------------------------------------------------------------------------
 
 def compare_dicts(
-    old: Dict[str, Any],
-    new: Dict[str, Any],
+    left: Dict[str, Any],
+    right: Dict[str, Any],
     *,
     ignore_fields: List[str] = None,
     abs_tol: float = 0.0,
@@ -208,17 +208,17 @@ def compare_dicts(
 
     compiled_ignores = _compile_patterns(ignore_fields)
 
-    if not isinstance(old, (dict, list)) or not isinstance(new, (dict, list)):
+    if not isinstance(left, (dict, list)) or not isinstance(right, (dict, list)):
         raise TypeError(
-            f"compare_dicts() expects two dict or list structures, got {type(old).__name__} and {type(new).__name__}"
+            f"compare_dicts() expects two dict or list structures, got {type(left).__name__} and {type(right).__name__}"
         )
 
     try:
-        old_obj = _remove_ignored_by_path(old, compiled_ignores)
-        new_obj = _remove_ignored_by_path(new, compiled_ignores)
+        old_obj = _remove_ignored_by_path(left, compiled_ignores)
+        new_obj = _remove_ignored_by_path(right, compiled_ignores)
     except Exception as e:
         logger.warning(f"[WARN] Failed during ignore filtering: {e}")
-        old_obj, new_obj = old, new
+        old_obj, new_obj = left, right
 
     try:
         return _deep_compare(
