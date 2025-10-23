@@ -1,3 +1,7 @@
+import logging
+
+import pytest
+
 from dictlens.core import compare_dicts
 
 debug = True
@@ -86,56 +90,42 @@ def test_ignore_path_root_field():
 
 
 def test_ignore_fields_complex():
-    """
-    Ignore multiple paths with different patterns:
-      - Exact path:            $.user.profile.updated_at
-      - Array wildcard:        $.devices[*].debug
-      - Recursive descent key: $..trace
-    """
     a = {
-        "user": {
-            "id": 7,
-            "profile": {"updated_at": "2025-10-14T10:00:00Z", "age": 30}
-        },
+        "user": {"id": 7, "profile": {"updated_at": "2025-10-14T10:00:00Z", "age": 30}},
         "devices": [
             {"id": "d1", "debug": "alpha", "temp": 20.0},
-            {"id": "d2", "debug": "beta", "temp": 20.1}
+            {"id": "d2", "debug": "beta", "temp": 20.1},
         ],
         "sessions": [
             {"events": [{"meta": {"trace": "abc"}, "value": 10.0}]},
-            {"events": [{"meta": {"trace": "def"}, "value": 10.5}]}
-        ]
+            {"events": [{"meta": {"trace": "def"}, "value": 10.5}]},
+        ],
     }
 
     b = {
-        "user": {
-            "id": 7,
-            "profile": {"updated_at": "2025-10-15T10:00:05Z", "age": 30}
-        },
+        "user": {"id": 7, "profile": {"updated_at": "2025-10-15T10:00:05Z", "age": 30}},
         "devices": [
             {"id": "d1", "debug": "changed", "temp": 20.05},
-            {"id": "d2", "debug": "changed", "temp": 20.18}
+            {"id": "d2", "debug": "changed", "temp": 20.18},
         ],
         "sessions": [
             {"events": [{"meta": {"trace": "xyz"}, "value": 10.01}]},
-            {"events": [{"meta": {"trace": "uvw"}, "value": 10.52}]}
-        ]
+            {"events": [{"meta": {"trace": "uvw"}, "value": 10.52}]},
+        ],
     }
 
-    # Ignore updated_at (exact), all device.debug (wildcard), any 'trace' anywhere (recursive)
     ignore_fields = [
-        "$.user.profile.updated_at",
-        "$.devices[*].debug",
-        "$..trace",
+        "$.user.profile.updated_at",  # exact path
+        "$.devices[*].debug",  # array wildcard
+        "$.sessions[*].events[*].meta.trace",  # explicit deep path
     ]
 
-    # Small global tolerance to allow minor sensor/value drift
     assert compare_dicts(
-        a, b,
+        a,
+        b,
         ignore_fields=ignore_fields,
         abs_tol=0.05,
         rel_tol=0.02,
-        show_debug=debug
     )
 
 
@@ -174,11 +164,11 @@ def test_property_wildcard_tolerance():
     assert compare_dicts(a, b, abs_tol_fields=abs_tol_fields, show_debug=debug)
 
 
-def test_recursive_wildcard_tolerance():
+def test_recursive_wildcard_tolerance_replaced():
     a = {"meta": {"deep": {"very": {"x": 100}}}}
     b = {"meta": {"deep": {"very": {"x": 101}}}}
-    abs_tol_fields = {"$..x": 2.0}
-    assert compare_dicts(a, b, abs_tol_fields=abs_tol_fields, show_debug=debug)
+    abs_tol_fields = {"$.meta.deep.very.x": 2.0}
+    assert compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
 
 
 # --------------------------------------------------------------------------
@@ -299,3 +289,69 @@ def test_combined_global_and_field_tolerances():
         ignore_fields=ignore_fields,
         show_debug=True
     )
+
+
+def test_compare_dicts_type_mismatch(caplog):
+    caplog.set_level(logging.DEBUG)
+    a = {"val": 123}
+    b = {"val": "123"}
+    assert not compare_dicts(a, b, show_debug=True)
+    assert any("TYPE MISMATCH" in msg for msg in caplog.messages)
+
+
+def test_compare_dicts_with_tolerances_numeric():
+    a = {"x": 100.0}
+    b = {"x": 100.1}
+    assert compare_dicts(a, b, abs_tol=0.2)
+
+
+def test_compare_dicts_invalid_pattern_in_input():
+    a = {"x": 1}
+    b = {"x": 1}
+    with pytest.raises(ValueError):
+        compare_dicts(a, b, ignore_fields=["invalid"])
+
+
+def test_compare_dicts_invalid_type_inputs():
+    with pytest.raises(TypeError):
+        compare_dicts("not-a-dict", {"x": 1})
+
+
+def test_compare_dicts_list_and_nested():
+    a = {"data": [1, 2, 3]}
+    b = {"data": [1, 2, 3]}
+    assert compare_dicts(a, b)
+
+
+def test_compare_dicts_list_mismatch():
+    a = {"data": [1, 2, 3]}
+    b = {"data": [1, 3, 2]}
+    assert not compare_dicts(a, b)
+
+
+# -----------------------------------------------------------------------------
+# Deep comparison numerics and logs
+# -----------------------------------------------------------------------------
+
+def test_compare_dicts_logs_numeric_details(caplog):
+    caplog.set_level(logging.DEBUG)
+    a = {"val": 10.0}
+    b = {"val": 10.05}
+    compare_dicts(a, b, abs_tol=0.1, show_debug=True)
+    logs = "\n".join(caplog.messages)
+    assert "[NUMERIC COMPARE]" in logs
+    assert "diff=" in logs
+
+
+def test_compare_dicts_handles_none_values(caplog):
+    caplog.set_level(logging.DEBUG)
+    a = {"val": None}
+    b = {"val": None}
+    assert compare_dicts(a, b, show_debug=True)
+    assert any("OK → None" in msg for msg in caplog.messages)
+
+
+def test_compare_dicts_one_none_value():
+    a = {"val": None}
+    b = {"val": 10}
+    assert not compare_dicts(a, b)

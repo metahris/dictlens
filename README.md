@@ -102,11 +102,11 @@ def test_ignore_fields_complex():
         ]
     }
 
-    # Ignore updated_at (exact), all device.debug (wildcard), any 'trace' anywhere (recursive)
+    # Ignore updated_at (exact), all device.debug (wildcard), and explicit deep trace path
     ignore_fields = [
         "$.user.profile.updated_at",
         "$.devices[*].debug",
-        "$..trace",
+        "$.sessions[*].events[*].meta.trace",
     ]
 
     # Small global tolerance to allow minor sensor/value drift
@@ -170,16 +170,16 @@ result = compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
 print(result) # True
 ```
 
-#### recursive wildcard tolerance
+#### deep nested field tolerance
 
 ```python
 from dictlens import compare_dicts
 
-a  = {"meta": {"deep": {"very": {"x": 100}}}}
+a = {"meta": {"deep": {"very": {"x": 100}}}}
 b = {"meta": {"deep": {"very": {"x": 101}}}}
-abs_tol_fields = {"$..x": 2.0}
+abs_tol_fields = {"$.meta.deep.very.x": 2.0}
 result = compare_dicts(a, b, abs_tol_fields=abs_tol_fields)
-print(result)
+print(result)  # True
 ```
 
 #### combined global and field tolerances
@@ -282,10 +282,6 @@ print(result)  # True
 <td><code>$.data.*.value</code></td>
 <td>Any property name</td>
 </tr>
-<tr>
-<td><code>$..x</code></td>
-<td>Recursive descent for key <code>x</code></td>
-</tr>
 </tbody>
 </table>
 
@@ -294,9 +290,12 @@ print(result)  # True
 dictlens currently supports a focused subset of JSONPath syntax designed for simplicity and performance in numeric
 comparisons.
 
+Recursive descent (`$..x`) is not supported — use explicit deep paths instead
+(e.g., `$.sessions[*].events[*].meta.trace`).
+
 These patterns cover the vast majority of practical comparison use cases.
 
-At the moment, advanced JSONPath features such as filters ([?()]), unions ([0,1,2]), slices ([0:2]), or expressions are
+advanced JSONPath features such as filters ([?()]), unions ([0,1,2]), slices ([0:2]), or expressions are
 not yet supported.
 Future versions of dictlens may expand support for these features once performance and readability trade-offs are fully
 evaluated.
