@@ -70,7 +70,7 @@ def test_ignore_fields_complex():
     Ignore multiple paths with different patterns:
       - Exact path:            $.user.profile.updated_at
       - Array wildcard:        $.devices[*].debug
-      - Recursive descent key: $..trace
+      - explicit deep trace path: $.sessions[*].events[*].meta.trace
     """
     a = {
         "user": {
