@@ -1,5 +1,11 @@
 # dictlens
 
+[![PyPI version](https://badge.fury.io/py/dictlens.svg)](https://pypi.org/project/dictlens/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/dictlens.svg)](https://pypi.org/project/dictlens/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Downloads](https://static.pepy.tech/badge/dictlens/month)](https://pepy.tech/project/dictlens)
+[![Build Status](https://github.com/metahris/dictlens/actions/workflows/run_tests.yaml/badge.svg)](https://github.com/metahris/dictlens/actions/workflows/run_tests.yml)
+
 Deep structural comparison for Python dicts with per-field numeric
 tolerance and JSONPath-like targeting.
 
